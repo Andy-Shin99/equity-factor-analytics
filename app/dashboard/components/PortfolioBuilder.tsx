@@ -207,7 +207,10 @@ export function PortfolioBuilder({
 
           <Separator />
 
-          <div className="max-h-[340px] space-y-3 overflow-y-auto pr-1">
+          {/* No nested scroll container. The sidebar already scrolls, and two
+              stacked scroll regions make it unpredictable which one the wheel
+              acts on — the list grows and the sidebar carries it. */}
+          <div className="space-y-3">
             {holdings.length === 0 ? (
               <p className="py-4 text-center text-xs text-muted-foreground">
                 No holdings. Add a ticker or load a sample.

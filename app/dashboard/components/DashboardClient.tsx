@@ -222,8 +222,10 @@ export function DashboardClient() {
       <div className="flex flex-col gap-4 p-4 xl:flex-row xl:items-start">
         {/* Sticky with its own scroll on wide screens: otherwise the sidebar is
             taller than the charts and drives a page height that leaves the main
-            column stranded in whitespace. */}
-        <aside className="w-full shrink-0 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:w-[320px] xl:overflow-y-auto xl:pr-1">
+            column stranded in whitespace. The bar itself is hidden — at full
+            height it sits directly beside the charts and reads as chrome
+            competing with the data. */}
+        <aside className="scrollbar-hidden w-full shrink-0 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:w-[320px] xl:overflow-y-auto">
           <PortfolioBuilder
             holdings={holdings}
             onHoldingsChange={applyHoldings}

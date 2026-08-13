@@ -65,3 +65,25 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+@layer utilities {
+  /**
+   * Scrollable, but without the visible bar.
+   *
+   * Used on the sidebar, where a full-height platform scrollbar sits right next
+   * to the charts and reads as chrome competing with the data. Scrolling itself
+   * is untouched — wheel, trackpad, keyboard and touch all still work.
+   *
+   * Only apply this where the content is obviously cut off at the edge, since the
+   * bar is also the cue that there is more to see.
+   */
+  .scrollbar-hidden {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* legacy Edge */
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
