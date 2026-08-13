@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Dark Mode First (DESIGN.md).
+ * The dark palette is declared on :root as well as .dark so the terminal theme
+ * applies even before any theme-toggle logic exists.
+ *
+ * HSL conversions of the DESIGN.md hex swatches:
+ *   #090d16 -> 222 42% 6%   (background)
+ *   #121826 -> 222 36% 11%  (card / popover)
+ *   #3b82f6 -> 217 91% 60%  (accent — Financial Blue)
+ *   #10b981 -> 160 84% 39%  (positive — Alpha Green)
+ *   #ef4444 -> 0 84% 60%    (negative — Risk Red)
+ */
+@layer base {
+  :root,
+  .dark {
+    --background: 222 42% 6%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 36% 11%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 36% 11%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 42% 6%;
+
+    --secondary: 222 30% 16%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 222 30% 16%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 91% 60%;
+    --accent-foreground: 222 42% 6%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 222 28% 20%;
+    --input: 222 28% 20%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* Financial figures must never jitter as digits change. */
+  .tabular,
+  table,
+  td,
+  th {
+    font-variant-numeric: tabular-nums;
+  }
+}

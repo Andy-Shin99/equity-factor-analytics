@@ -1,0 +1,24 @@
+node_modules/
+.next/
+out/
+build/
+next-env.d.ts
+
+# Environment — never commit real keys
+.env
+.env.local
+.env*.local
+
+# Machine-local Claude Code permission grants; the shared config is settings.json
+.claude/settings.local.json
+
+# Supabase local stack
+.branches/
+.temp/
+supabase/.branches/
+supabase/.temp/
+
+.DS_Store
+*.tsbuildinfo
+.vercel
+coverage/
