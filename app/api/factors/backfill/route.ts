@@ -14,7 +14,14 @@ import { isoToday } from "@/lib/api/marketData";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const preferredRegion = "hnd1";
-export const maxDuration = 300;
+/**
+ * 60s is the Vercel Hobby ceiling, so this stays portable across plans. The
+ * measured full 13-year backfill is ~8s cold and ~5s warm against a populated
+ * price cache, leaving ample headroom. If the window ever grows past this,
+ * chunk the range with the `from`/`to` query parameters rather than raising it —
+ * that keeps the route deployable on any plan.
+ */
+export const maxDuration = 60;
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
