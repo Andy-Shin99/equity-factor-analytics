@@ -4,9 +4,14 @@ import { runFactorRegression, type FactorBeta } from "@/lib/quant/factorModel";
 import {
   buildPortfolioReturns,
   toReturnSeries,
+  type CoverageGap,
   type MissingDatePolicy,
 } from "@/lib/quant/returns";
-import { summarizeRisk, type RiskSummary } from "@/lib/quant/risk";
+import {
+  summarizeRisk,
+  TRADING_DAYS_PER_YEAR,
+  type RiskSummary,
+} from "@/lib/quant/risk";
 import {
   DEFAULT_ROLLING_WINDOW,
   rollingFactorBetas,
@@ -111,6 +116,8 @@ export interface AnalyticsResult {
       datesDropped: number;
       datesPartial: number;
       tickersMissing: string[];
+      /** Which holdings caused the dropped dates, worst first. */
+      coverageGaps: CoverageGap[];
       weightSum: number;
       weightsNormalized: boolean;
     };
@@ -128,6 +135,61 @@ export class AnalyticsError extends Error {
     super(message);
     this.name = "AnalyticsError";
   }
+}
+
+/**
+ * Measured cost of differing US/KRX holiday calendars: comparing AAPL against
+ * 005930.KS over three years shares 704 of 776 dates, i.e. ~24 dropped per year.
+ * Anything materially above that is a holding with short history, not a calendar
+ * difference — and the two need different fixes, so the message must not conflate
+ * them.
+ */
+const CALENDAR_DROPS_PER_YEAR = 24;
+
+function formatGaps(gaps: readonly CoverageGap[], limit = 3): string {
+  if (gaps.length === 0) return "none";
+  const shown = gaps
+    .slice(0, limit)
+    .map((gap) => `${gap.ticker} (${gap.missingDates})`)
+    .join(", ");
+  return gaps.length > limit ? `${shown}, +${gaps.length - limit} more` : shown;
+}
+
+/**
+ * Explain dropped dates in terms the reader can act on: which holdings caused
+ * them, and whether the magnitude is ordinary calendar friction or a real
+ * history problem.
+ *
+ * `totalDatesConsidered` is the size of the date union, i.e. the window actually
+ * spanned. Scaling the expectation off the DROP count instead would be circular —
+ * a large number of drops would then justify itself as normal.
+ */
+export function describeCoverageGaps(
+  droppedCount: number,
+  gaps: readonly CoverageGap[],
+  totalDatesConsidered: number,
+): string {
+  const base = `${droppedCount} dates dropped where at least one holding had no return (strict policy). Largest gaps: ${formatGaps(gaps)}.`;
+
+  const years = Math.max(totalDatesConsidered, 1) / TRADING_DAYS_PER_YEAR;
+  // 1.5x margin: the calendar cost is uneven between the two exchanges, and a
+  // false "short history" claim is worse than staying quiet. The 30-date floor
+  // keeps very short windows from tripping on ordinary holiday counts.
+  const calendarBudget = Math.max(30, years * CALENDAR_DROPS_PER_YEAR * 1.5);
+  const worst = gaps[0];
+
+  // A holding missing far more than a calendar mismatch could explain is almost
+  // always short history — a recent listing, or an incomplete cache.
+  if (worst && worst.missingDates > calendarBudget) {
+    return (
+      `${base} ${worst.ticker} alone is missing ${worst.missingDates} of ${totalDatesConsidered} dates, ` +
+      `far more than differing US/KRX holiday calendars can explain over ${years.toFixed(1)} years ` +
+      "(~24 a year). Its price history most likely starts after the window does — shorten the period, " +
+      "drop that holding, or switch to the renormalise policy to keep the dates and rescale weights."
+    );
+  }
+
+  return `${base} This is the normal cost of mixing US and KRX holiday calendars (~24 dates a year).`;
 }
 
 export async function runPortfolioAnalytics(
@@ -229,12 +291,17 @@ export async function runPortfolioAnalytics(
   }
   if (portfolio.meta.datesDropped.length > 0) {
     warnings.push(
-      `${portfolio.meta.datesDropped.length} dates dropped where at least one holding had no return (strict policy; mixed US/KRX calendars do this).`,
+      describeCoverageGaps(
+        portfolio.meta.datesDropped.length,
+        portfolio.meta.coverageGaps,
+        portfolio.meta.datesUsed + portfolio.meta.datesDropped.length,
+      ),
     );
   }
   if (portfolio.meta.datesPartial.length > 0) {
     warnings.push(
-      `${portfolio.meta.datesPartial.length} dates used with rescaled weights, which changes that day's exposure.`,
+      `${portfolio.meta.datesPartial.length} dates used with rescaled weights, which changes that day's exposure. ` +
+        `Largest coverage gaps: ${formatGaps(portfolio.meta.coverageGaps)}.`,
     );
   }
   if (portfolio.meta.weightsNormalized) {
@@ -336,6 +403,7 @@ export async function runPortfolioAnalytics(
         datesDropped: portfolio.meta.datesDropped.length,
         datesPartial: portfolio.meta.datesPartial.length,
         tickersMissing: portfolio.meta.tickersMissing,
+        coverageGaps: portfolio.meta.coverageGaps,
         weightSum: portfolio.meta.weightSum,
         weightsNormalized: portfolio.meta.weightsNormalized,
       },

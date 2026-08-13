@@ -108,6 +108,12 @@ export interface PortfolioReturnOptions {
   weightTolerance?: number;
 }
 
+export interface CoverageGap {
+  ticker: string;
+  /** Dates in the union where this holding had no return. */
+  missingDates: number;
+}
+
 export interface PortfolioReturnResult {
   series: ReturnSeries;
   meta: {
@@ -119,6 +125,15 @@ export interface PortfolioReturnResult {
     datesDropped: string[];
     /** Dates kept with rescaled weights (`renormalize` only). */
     datesPartial: string[];
+    /**
+     * Which holdings are responsible for the dropped dates, worst first.
+     *
+     * Without this, a large drop count is unattributable: differing US/KRX
+     * holiday calendars cost only ~24 dates a year, so a big number almost always
+     * means one holding with short history (a recent IPO, a ticker whose cache is
+     * incomplete) — and the user has no way to tell which.
+     */
+    coverageGaps: CoverageGap[];
     weightSum: number;
     weightsNormalized: boolean;
   };
@@ -183,11 +198,22 @@ export function buildPortfolioReturns(
   const values: number[] = [];
   const datesDropped: string[] = [];
   const datesPartial: string[] = [];
+  const missingByTicker = new Map<string, number>();
 
   for (const date of [...dateUnion].sort()) {
     const present = usable.filter((h) => returnsByTicker.get(h.ticker)?.has(date));
 
     if (present.length !== usable.length) {
+      // Attribute the incomplete date to every holding that was absent, so the
+      // caller can name the culprit rather than only report a count.
+      for (const holding of usable) {
+        if (!returnsByTicker.get(holding.ticker)?.has(date)) {
+          missingByTicker.set(
+            holding.ticker,
+            (missingByTicker.get(holding.ticker) ?? 0) + 1,
+          );
+        }
+      }
       if (missingDatePolicy === "strict") {
         datesDropped.push(date);
         continue;
@@ -211,6 +237,10 @@ export function buildPortfolioReturns(
     values.push(value);
   }
 
+  const coverageGaps: CoverageGap[] = [...missingByTicker.entries()]
+    .map(([ticker, missingDates]) => ({ ticker, missingDates }))
+    .sort((a, b) => b.missingDates - a.missingDates || a.ticker.localeCompare(b.ticker));
+
   return {
     series: { dates, values },
     meta: {
@@ -219,6 +249,7 @@ export function buildPortfolioReturns(
       datesUsed: dates.length,
       datesDropped,
       datesPartial,
+      coverageGaps,
       weightSum: rawSum,
       weightsNormalized,
     },

@@ -121,6 +121,69 @@ describe("buildPortfolioReturns", () => {
     expect(meta.datesPartial).toEqual([]);
   });
 
+  it("attributes dropped dates to the holding that caused them", () => {
+    // A bare count is unattributable; the caller needs to know it was MSFT.
+    const partial = {
+      ...panel,
+      MSFT: bars("MSFT", [
+        ["2024-01-02", 200],
+        ["2024-01-03", 190],
+      ]),
+    };
+    const { meta } = buildPortfolioReturns(partial, holdings);
+    expect(meta.coverageGaps).toEqual([{ ticker: "MSFT", missingDates: 1 }]);
+  });
+
+  it("reports no coverage gaps when every holding spans the window", () => {
+    expect(buildPortfolioReturns(panel, holdings).meta.coverageGaps).toEqual([]);
+  });
+
+  it("ranks coverage gaps worst first", () => {
+    const ragged = {
+      AAPL: bars("AAPL", [
+        ["2024-01-02", 100],
+        ["2024-01-03", 110],
+        ["2024-01-04", 110],
+        ["2024-01-05", 111],
+      ]),
+      // Missing two of the union's return dates.
+      MSFT: bars("MSFT", [
+        ["2024-01-02", 200],
+        ["2024-01-03", 190],
+      ]),
+      // Missing one.
+      NVDA: bars("NVDA", [
+        ["2024-01-02", 50],
+        ["2024-01-03", 55],
+        ["2024-01-04", 56],
+      ]),
+    };
+    const { meta } = buildPortfolioReturns(ragged, [
+      { ticker: "AAPL", weight: 0.34 },
+      { ticker: "MSFT", weight: 0.33 },
+      { ticker: "NVDA", weight: 0.33 },
+    ]);
+    expect(meta.coverageGaps).toEqual([
+      { ticker: "MSFT", missingDates: 2 },
+      { ticker: "NVDA", missingDates: 1 },
+    ]);
+  });
+
+  it("still attributes gaps under the renormalise policy", () => {
+    const partial = {
+      ...panel,
+      MSFT: bars("MSFT", [
+        ["2024-01-02", 200],
+        ["2024-01-03", 190],
+      ]),
+    };
+    const { meta } = buildPortfolioReturns(partial, holdings, {
+      missingDatePolicy: "renormalize",
+    });
+    expect(meta.datesPartial).toEqual(["2024-01-04"]);
+    expect(meta.coverageGaps).toEqual([{ ticker: "MSFT", missingDates: 1 }]);
+  });
+
   it("renormalises the available weights when asked, and reports the affected dates", () => {
     const partial = {
       ...panel,
